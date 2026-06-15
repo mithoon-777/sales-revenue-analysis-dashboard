@@ -1,64 +1,24 @@
+## Diagnosis
 
-## Sales & Revenue Analysis Dashboard
+I checked the project and the code itself is healthy:
 
-A fully client-side analytics dashboard. No backend required — uploaded files are parsed in the browser and held in memory/localStorage. This keeps it fast, private, and zero-setup.
+- `bun run build` ✅ succeeds (13s, no errors)
+- `bun run build:dev` ✅ succeeds (the exact command the preview uses)
+- Dev server at `localhost:8080` is up and returning a full, valid HTML page (sidebar, dashboard, charts all in the markup)
+- No errors in console logs or Vite daemon logs
 
-### Scope
+The "Preview has not been built yet. Either your project has an error or the preview is currently being built" message you're seeing is the Lovable preview iframe's fallback — it appears when the iframe can't reach the sandbox dev server, not because of a real code error. The app underneath is fine.
 
-- Sidebar-navigated app shell with Dashboard, Upload, Insights, and Settings routes
-- CSV + XLSX upload with auto column detection for: Order ID, Date, Product, Category, Region, Quantity, Unit Price, Revenue
-- KPI cards: Total Sales (units), Total Revenue, Total Orders, Avg Order Value
-- Charts (Recharts): revenue trend line, monthly sales bar, top products bar, revenue by category pie, revenue by region bar
-- Global filters: date range, product, category, region — all charts/KPIs react
-- Auto-generated insights (best product, top category, top region, MoM growth %)
-- Export filtered data → CSV; export dashboard summary → PDF
-- Dark/Light mode toggle, responsive layout, hover-elevated cards
+## Fix
 
-### Tech
+Single step: restart the Vite dev server in the sandbox so the preview iframe reconnects.
 
-- TanStack Start routes: `/` (dashboard), `/upload`, `/insights`
-- `papaparse` for CSV, `xlsx` (SheetJS) for Excel
-- `recharts` for charts (already idiomatic)
-- `jspdf` + `jspdf-autotable` for PDF export
-- `zustand` for in-memory dataset + filter state (persisted to localStorage)
-- shadcn components: sidebar, card, button, select, popover, calendar, table, tabs, sonner
-- next-themes for dark/light toggle
+1. Run `code--restart_dev_server` to bounce Vite cleanly without rebuilding everything
+2. Verify by reloading the preview (`browser--view_preview` at `/`) and confirming the dashboard renders
+3. If the preview is still wedged after the restart, capture the iframe network error and look for an outdated `dist/` or stale Wrangler cache to clear
 
-### Routes & Layout
+No code changes are needed — `src/lib/parse.ts`, `src/routes/upload.tsx`, the store, the routes, and `vite.config.ts` all compile and SSR correctly.
 
-```text
-src/routes/
-  __root.tsx           // SidebarProvider + ThemeProvider shell
-  index.tsx            // Dashboard (KPIs + charts + filters + exports)
-  upload.tsx           // File dropzone, column mapping preview, sample data button
-  insights.tsx         // Auto-generated narrative insights + supporting mini-charts
-```
+## If you actually saw a different error
 
-### Key Modules
-
-- `src/lib/parse.ts` — CSV/XLSX → normalized rows; fuzzy header matching; coerces dates/numbers
-- `src/lib/store.ts` — zustand store: `rows`, `filters`, derived selectors
-- `src/lib/analytics.ts` — KPI, grouping, MoM growth, top-N helpers
-- `src/lib/export.ts` — `toCSV(rows)` and `toPDF(summary, kpis, chartImages)`
-- `src/components/dashboard/` — `KpiCard`, `Filters`, `RevenueTrend`, `MonthlySales`, `TopProducts`, `CategoryPie`, `RegionBar`, `InsightsPanel`
-- `src/components/app-sidebar.tsx` — nav with Dashboard / Upload / Insights
-- `src/components/theme-toggle.tsx`
-
-### Data Flow
-
-1. User uploads file on `/upload` → parsed → normalized rows stored in zustand (+ localStorage)
-2. Dashboard reads rows + filters → memoized selectors produce KPIs and chart series
-3. Changing any filter triggers recomputation; charts animate
-4. Export buttons read currently-filtered rows
-
-### Design
-
-Professional business dashboard: neutral surface with a single accent color, generous spacing, semantic tokens defined in `src/styles.css` (no hardcoded colors). Cards use subtle shadow + hover lift. Icons via lucide-react. Fully responsive — sidebar collapses to icon rail on mobile.
-
-### Out of Scope
-
-- Auth / multi-user / cloud persistence (everything is local to the browser)
-- Real-time data sources
-- Custom report builder
-
-A sample dataset will be bundled so the dashboard is populated on first load before any upload.
+If by "errors" you meant something specific (e.g. an error on the Upload page when dropping a file, a chart that won't render, a TypeScript complaint in your editor), paste the message or tell me which page — I'll target that instead of just restarting the preview.
