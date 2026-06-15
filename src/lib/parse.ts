@@ -51,15 +51,54 @@ function toDateString(v: unknown): string {
   return s;
 }
 
-export function normalizeRows(raw: Record<string, unknown>[]): SalesRow[] {
-  if (!raw.length) return [];
+const REQUIRED_COLUMNS: (keyof SalesRow)[] = [
+  "orderId",
+  "date",
+  "product",
+  "category",
+  "region",
+  "quantity",
+  "unitPrice",
+  "revenue",
+];
+
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
+const ALLOWED_EXT = [".csv", ".xlsx", ".xls"];
+
+export type ParseResult = {
+  rows: SalesRow[];
+  missingColumns: string[];
+  detectedColumns: string[];
+  skippedRows: number;
+};
+
+export function validateFile(file: File): string | null {
+  const name = file.name.toLowerCase();
+  if (!ALLOWED_EXT.some((e) => name.endsWith(e))) {
+    return "Unsupported file type. Use .csv, .xlsx, or .xls";
+  }
+  if (file.size === 0) return "File is empty";
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return `File exceeds ${(MAX_UPLOAD_BYTES / 1024 / 1024).toFixed(0)}MB limit`;
+  }
+  return null;
+}
+
+export function normalizeRows(raw: Record<string, unknown>[]): ParseResult {
+  if (!raw.length) {
+    return { rows: [], missingColumns: REQUIRED_COLUMNS, detectedColumns: [], skippedRows: 0 };
+  }
   const headers = Object.keys(raw[0]);
   const map: Partial<Record<keyof SalesRow, string | null>> = {};
   (Object.keys(HEADER_MAP) as (keyof SalesRow)[]).forEach((k) => {
     map[k] = findHeader(headers, HEADER_MAP[k]);
   });
 
+  const missingColumns = REQUIRED_COLUMNS.filter((k) => !map[k]);
+  const detectedColumns = REQUIRED_COLUMNS.filter((k) => map[k]);
+
   const rows: SalesRow[] = [];
+  let skipped = 0;
   raw.forEach((r, i) => {
     const get = (k: keyof SalesRow) => (map[k] ? r[map[k] as string] : undefined);
     const qty = toNumber(get("quantity"));
@@ -67,7 +106,10 @@ export function normalizeRows(raw: Record<string, unknown>[]): SalesRow[] {
     let revenue = toNumber(get("revenue"));
     if (!revenue) revenue = qty * price;
     const date = toDateString(get("date"));
-    if (!date) return;
+    if (!date) {
+      skipped++;
+      return;
+    }
     rows.push({
       orderId: String(get("orderId") ?? `ROW-${i + 1}`),
       date,
@@ -79,10 +121,12 @@ export function normalizeRows(raw: Record<string, unknown>[]): SalesRow[] {
       revenue,
     });
   });
-  return rows;
+  return { rows, missingColumns, detectedColumns, skippedRows: skipped };
 }
 
-export async function parseFile(file: File): Promise<SalesRow[]> {
+export async function parseFile(file: File): Promise<ParseResult> {
+  const err = validateFile(file);
+  if (err) throw new Error(err);
   const name = file.name.toLowerCase();
   if (name.endsWith(".csv") || file.type === "text/csv") {
     const Papa = (await import("papaparse")).default;
@@ -106,3 +150,4 @@ export async function parseFile(file: File): Promise<SalesRow[]> {
   }
   throw new Error("Unsupported file type. Use .csv or .xlsx");
 }
+
