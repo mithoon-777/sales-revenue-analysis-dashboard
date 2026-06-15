@@ -46,7 +46,7 @@ export const useDashboard = create<State>()(
     {
       name: "sales-dashboard",
       storage: createJSONStorage(() =>
-        typeof window !== "undefined" ? window.localStorage : (noopStorage as Storage),
+        typeof window !== "undefined" ? window.localStorage : (noopStorage as unknown as Storage),
       ),
       skipHydration: true,
     },
