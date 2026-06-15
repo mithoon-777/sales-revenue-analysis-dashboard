@@ -16,3 +16,14 @@ export type Filters = {
   category: string | null;
   region: string | null;
 };
+
+export type UploadHistoryEntry = {
+  id: string;
+  name: string;
+  size: number;
+  rowCount: number;
+  status: "success" | "warning" | "error";
+  message?: string;
+  missingColumns?: string[];
+  timestamp: number;
+};
