@@ -1,7 +1,18 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { FileSpreadsheet, FileUp, Sparkles, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  FileSpreadsheet,
+  FileUp,
+  History,
+  Sparkles,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -14,7 +25,8 @@ import {
 } from "@/components/ui/table";
 import { StoreHydrate } from "@/components/dashboard/hydrate";
 import { useDashboard } from "@/lib/store";
-import { parseFile } from "@/lib/parse";
+import { MAX_UPLOAD_BYTES, parseFile, validateFile } from "@/lib/parse";
+import type { UploadHistoryEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/upload")({
@@ -31,30 +43,110 @@ export const Route = createFileRoute("/upload")({
   ),
 });
 
+function formatBytes(b: number) {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / 1024 / 1024).toFixed(2)} MB`;
+}
+
 function UploadPage() {
   const navigate = useNavigate();
   const rows = useDashboard((s) => s.rows);
   const source = useDashboard((s) => s.source);
+  const history = useDashboard((s) => s.history);
   const setRows = useDashboard((s) => s.setRows);
   const loadSample = useDashboard((s) => s.loadSample);
+  const addHistory = useDashboard((s) => s.addHistory);
+  const clearHistory = useDashboard((s) => s.clearHistory);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [lastWarning, setLastWarning] = useState<{
+    name: string;
+    missing: string[];
+    skipped: number;
+  } | null>(null);
 
   async function handleFile(file: File) {
+    setLastWarning(null);
+    const validationError = validateFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      const entry: UploadHistoryEntry = {
+        id: crypto.randomUUID(),
+        name: file.name,
+        size: file.size,
+        rowCount: 0,
+        status: "error",
+        message: validationError,
+        timestamp: Date.now(),
+      };
+      addHistory(entry);
+      return;
+    }
+
     setBusy(true);
     try {
-      const parsed = await parseFile(file);
-      if (!parsed.length) {
-        toast.error("Couldn't find any valid rows. Check column headers.");
+      const result = await parseFile(file);
+      if (!result.rows.length) {
+        const msg =
+          result.missingColumns.length > 0
+            ? `Missing required columns: ${result.missingColumns.join(", ")}`
+            : "No valid rows found";
+        toast.error(msg);
+        addHistory({
+          id: crypto.randomUUID(),
+          name: file.name,
+          size: file.size,
+          rowCount: 0,
+          status: "error",
+          message: msg,
+          missingColumns: result.missingColumns,
+          timestamp: Date.now(),
+        });
         return;
       }
-      setRows(parsed, "uploaded");
-      toast.success(`Imported ${parsed.length.toLocaleString()} records`);
-      navigate({ to: "/" });
+
+      setRows(result.rows, "uploaded");
+      const hasWarning = result.missingColumns.length > 0 || result.skippedRows > 0;
+      if (hasWarning) {
+        setLastWarning({
+          name: file.name,
+          missing: result.missingColumns,
+          skipped: result.skippedRows,
+        });
+        toast.warning(`Imported ${result.rows.length.toLocaleString()} records with warnings`);
+      } else {
+        toast.success(`Imported ${result.rows.length.toLocaleString()} records`);
+      }
+      addHistory({
+        id: crypto.randomUUID(),
+        name: file.name,
+        size: file.size,
+        rowCount: result.rows.length,
+        status: hasWarning ? "warning" : "success",
+        message: hasWarning
+          ? `${result.skippedRows} skipped${
+              result.missingColumns.length ? `, missing: ${result.missingColumns.join(", ")}` : ""
+            }`
+          : undefined,
+        missingColumns: result.missingColumns,
+        timestamp: Date.now(),
+      });
+      if (!hasWarning) navigate({ to: "/" });
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "Failed to parse file");
+      const msg = e instanceof Error ? e.message : "Failed to parse file";
+      toast.error(msg);
+      addHistory({
+        id: crypto.randomUUID(),
+        name: file.name,
+        size: file.size,
+        rowCount: 0,
+        status: "error",
+        message: msg,
+        timestamp: Date.now(),
+      });
     } finally {
       setBusy(false);
     }
@@ -69,6 +161,19 @@ function UploadPage() {
           Category, Region, Quantity, Unit Price, Revenue.
         </p>
       </div>
+
+      {lastWarning && (
+        <Alert variant="default" className="border-amber-500/50 bg-amber-500/5">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>Imported with warnings — {lastWarning.name}</AlertTitle>
+          <AlertDescription className="space-y-1 text-sm">
+            {lastWarning.missing.length > 0 && (
+              <div>Missing columns: {lastWarning.missing.join(", ")}</div>
+            )}
+            {lastWarning.skipped > 0 && <div>{lastWarning.skipped} rows skipped (invalid date)</div>}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -95,7 +200,9 @@ function UploadPage() {
               </div>
               <div>
                 <p className="text-base font-semibold">Drop your file here</p>
-                <p className="text-sm text-muted-foreground">CSV or XLSX, up to ~10MB</p>
+                <p className="text-sm text-muted-foreground">
+                  CSV or XLSX, up to {(MAX_UPLOAD_BYTES / 1024 / 1024).toFixed(0)}MB
+                </p>
               </div>
               <input
                 ref={inputRef}
@@ -137,12 +244,62 @@ function UploadPage() {
               <Trash2 className="mr-2 h-4 w-4" /> Clear all data
             </Button>
             <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-              Current: <span className="font-medium text-foreground">{rows.length.toLocaleString()}</span>{" "}
+              Current:{" "}
+              <span className="font-medium text-foreground">{rows.length.toLocaleString()}</span>{" "}
               records ({source})
             </div>
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <History className="h-4 w-4 text-primary" /> Upload history
+          </CardTitle>
+          {history.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearHistory}>
+              Clear
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          {history.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No uploads yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Status</TableHead>
+                  <TableHead>File</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead className="text-right">Rows</TableHead>
+                  <TableHead>When</TableHead>
+                  <TableHead>Notes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.map((h) => (
+                  <TableRow key={h.id}>
+                    <TableCell>
+                      <StatusBadge status={h.status} />
+                    </TableCell>
+                    <TableCell className="max-w-[220px] truncate font-medium">{h.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatBytes(h.size)}</TableCell>
+                    <TableCell className="text-right">{h.rowCount.toLocaleString()}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(h.timestamp).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="max-w-[280px] truncate text-xs text-muted-foreground">
+                      {h.message ?? "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {rows.length > 0 && (
         <Card>
@@ -184,5 +341,27 @@ function UploadPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: UploadHistoryEntry["status"] }) {
+  if (status === "success") {
+    return (
+      <Badge variant="secondary" className="gap-1 bg-emerald-500/10 text-emerald-600">
+        <CheckCircle2 className="h-3 w-3" /> Success
+      </Badge>
+    );
+  }
+  if (status === "warning") {
+    return (
+      <Badge variant="secondary" className="gap-1 bg-amber-500/10 text-amber-600">
+        <AlertTriangle className="h-3 w-3" /> Warning
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="gap-1 bg-destructive/10 text-destructive">
+      <XCircle className="h-3 w-3" /> Error
+    </Badge>
   );
 }
