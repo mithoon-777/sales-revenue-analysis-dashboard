@@ -1,17 +1,20 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { Filters, SalesRow } from "./types";
+import type { Filters, SalesRow, UploadHistoryEntry } from "./types";
 import { generateSampleData } from "./sample-data";
 
 type State = {
   rows: SalesRow[];
   source: "sample" | "uploaded";
   filters: Filters;
+  history: UploadHistoryEntry[];
   setRows: (rows: SalesRow[], source?: "sample" | "uploaded") => void;
   clear: () => void;
   setFilter: <K extends keyof Filters>(k: K, v: Filters[K]) => void;
   resetFilters: () => void;
   loadSample: () => void;
+  addHistory: (entry: UploadHistoryEntry) => void;
+  clearHistory: () => void;
 };
 
 const defaultFilters: Filters = {
@@ -34,6 +37,7 @@ export const useDashboard = create<State>()(
       rows: [],
       source: "sample",
       filters: defaultFilters,
+      history: [],
       setRows: (rows, source = "uploaded") =>
         set({ rows, source, filters: defaultFilters }),
       clear: () => set({ rows: [], source: "sample", filters: defaultFilters }),
@@ -42,6 +46,9 @@ export const useDashboard = create<State>()(
       resetFilters: () => set({ filters: defaultFilters }),
       loadSample: () =>
         set({ rows: generateSampleData(), source: "sample", filters: defaultFilters }),
+      addHistory: (entry) =>
+        set((s) => ({ history: [entry, ...s.history].slice(0, 20) })),
+      clearHistory: () => set({ history: [] }),
     }),
     {
       name: "sales-dashboard",
@@ -52,3 +59,4 @@ export const useDashboard = create<State>()(
     },
   ),
 );
+
