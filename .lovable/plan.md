@@ -1,24 +1,35 @@
-## Diagnosis
+# Deploy to Vercel + Add README
 
-I checked the project and the code itself is healthy:
+## What I'll do
 
-- `bun run build` ✅ succeeds (13s, no errors)
-- `bun run build:dev` ✅ succeeds (the exact command the preview uses)
-- Dev server at `localhost:8080` is up and returning a full, valid HTML page (sidebar, dashboard, charts all in the markup)
-- No errors in console logs or Vite daemon logs
+1. **Add `vercel.json`** at the project root configured for TanStack Start (Vite) on Vercel:
+   - `buildCommand`: `bun run build`
+   - `outputDirectory`: `.output/public` (TanStack Start's default)
+   - SPA fallback rewrite so deep links work on refresh
+   - Framework preset compatible with the existing Vite + TanStack Start setup
 
-The "Preview has not been built yet. Either your project has an error or the preview is currently being built" message you're seeing is the Lovable preview iframe's fallback — it appears when the iframe can't reach the sandbox dev server, not because of a real code error. The app underneath is fine.
+2. **Create `README.md`** at the project root with:
+   - Project title + short description (CSV Analytics Dashboard: upload, KPIs, charts, insights, upload history & validation)
+   - Tech stack (React 19, TanStack Start, Vite 7, Tailwind v4, shadcn/ui, Recharts)
+   - Features list (upload + validation, history, dashboard, insights, theme toggle, export)
+   - Local dev instructions (`bun install`, `bun run dev`)
+   - Build commands (`bun run build`, `bun run build:dev`)
+   - Project structure overview (routes, components, lib)
+   - **Deploy to Vercel** section — step by step:
+     1. Push to GitHub (via Lovable → GitHub → Connect project)
+     2. Import the repo on vercel.com → New Project
+     3. Framework preset: Other (Vite); build command `bun run build`; output `.output/public`
+     4. Click Deploy
+   - **Deploy to Netlify** section (keep, since asked previously)
+   - **GitHub sync** note (bidirectional sync via Lovable)
 
-## Fix
+## Notes
 
-Single step: restart the Vite dev server in the sandbox so the preview iframe reconnects.
+- Same approach as the Predictive Model project: a `vercel.json` + README, then user connects GitHub and imports into Vercel.
+- No app code changes — purely deployment config and docs.
+- No environment variables needed (app is fully client-side; no Lovable Cloud enabled).
 
-1. Run `code--restart_dev_server` to bounce Vite cleanly without rebuilding everything
-2. Verify by reloading the preview (`browser--view_preview` at `/`) and confirming the dashboard renders
-3. If the preview is still wedged after the restart, capture the iframe network error and look for an outdated `dist/` or stale Wrangler cache to clear
+## Files
 
-No code changes are needed — `src/lib/parse.ts`, `src/routes/upload.tsx`, the store, the routes, and `vite.config.ts` all compile and SSR correctly.
-
-## If you actually saw a different error
-
-If by "errors" you meant something specific (e.g. an error on the Upload page when dropping a file, a chart that won't render, a TypeScript complaint in your editor), paste the message or tell me which page — I'll target that instead of just restarting the preview.
+- create `vercel.json`
+- create `README.md`
