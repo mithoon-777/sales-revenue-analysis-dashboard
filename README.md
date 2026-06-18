@@ -1,5 +1,11 @@
 # CSV Analytics Dashboard
 
+## Live Demo
+
+https://sales-revenue-analysis-dashboard-neon.vercel.app/
+
+## Overview
+
 An interactive analytics dashboard for CSV/Excel data — upload a file and get instant KPIs, charts, filters, insights, and exportable reports.
 
 Built with **React 19**, **TanStack Start**, **Vite 7**, **Tailwind CSS v4**, **shadcn/ui**, and **Recharts**.
