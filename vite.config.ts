@@ -12,7 +12,7 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
-  // Force Nitro to run during non-sandbox builds (e.g. Netlify CI) using the Netlify preset.
-  // Without this, @lovable.dev/vite-tanstack-config skips Nitro outside of Lovable sandbox.
-  nitro: { preset: "netlify" },
+  // Force Nitro to run during non-sandbox builds (e.g. Netlify/Vercel CI).
+  // Override with NITRO_PRESET env var (e.g. "vercel" on Vercel, "netlify" on Netlify).
+  nitro: { preset: process.env.NITRO_PRESET || "netlify" },
 });
