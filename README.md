@@ -1,4 +1,4 @@
-# CSV Analytics Dashboard
+# Sales & Revenue Analytics 
 
 ## Live Demo
 
