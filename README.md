@@ -6,7 +6,7 @@ https://sales-revenue-analysis-dashboard-neon.vercel.app/
 
 ## Overview
 
-An interactive analytics dashboard for CSV/Excel data — upload a file and get instant KPIs, charts, filters, insights, and exportable reports.
+Developed an interactive Sales & Revenue Analysis Dashboard using Lovable AI and modern web technologies. Implemented KPI tracking, revenue trend analysis, product performance visualization, and interactive filtering to generate actionable business insights. Deployed the application on Vercel and managed source control through GitHub.
 
 Built with **React 19**, **TanStack Start**, **Vite 7**, **Tailwind CSS v4**, **shadcn/ui**, and **Recharts**.
 
